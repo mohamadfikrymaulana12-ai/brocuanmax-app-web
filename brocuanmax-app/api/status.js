@@ -1,10 +1,5 @@
-export default async function handler(req, res) {
-    if (req.method !== 'GET') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
-
+module.exports = async function handler(req, res) {
     const { taskId } = req.query;
-    // Mengambil API Key dari header yang dikirim Frontend
     const apiKey = req.headers['x-magnific-api-key'];
 
     if (!taskId || !apiKey) {
@@ -20,14 +15,9 @@ export default async function handler(req, res) {
         });
 
         const data = await magnificRes.json();
-
-        if (!magnificRes.ok) {
-            return res.status(magnificRes.status).json({ error: data.detail || 'Gagal mengecek status' });
-        }
-
-        res.status(200).json(data);
+        res.status(magnificRes.status).json(data);
 
     } catch (error) {
-        res.status(500).json({ error: 'Internal Server Error (Vercel)' });
+        res.status(500).json({ error: 'Internal Server Error pada Vercel Proxy' });
     }
 }
