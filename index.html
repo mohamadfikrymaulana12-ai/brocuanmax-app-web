@@ -1,517 +1,60 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brocuanmax</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- FontAwesome & Google Fonts -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: #0B0E14; /* Deep dark background */
-            color: #e2e8f0;
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-        }
-        
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0B0E14; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+const express = require('express');
+const app = express();
 
-        /* Custom Animations */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-        
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        .animate-float { animation: float 6s ease-in-out infinite; }
+// Menangani payload besar
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-        /* Glassmorphism Panels */
-        .glass-panel {
-            background: rgba(20, 25, 35, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-        }
+// Rute untuk mengecek status (Status API)
+app.get('/api/status', async (req, res) => {
+    const { taskId } = req.query;
+    const apiKey = req.headers['x-magnific-api-key'];
 
-        /* Gradient Text */
-        .text-gradient {
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-image: linear-gradient(90deg, #F59E0B, #FCD34D); /* Magnific Yellow/Gold */
-        }
+    if (!taskId || !apiKey) {
+        return res.status(400).json({ error: 'Missing taskId or API Key' });
+    }
 
-        /* Custom Button */
-        .btn-magnific {
-            background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
-            color: white;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
-        }
-        .btn-magnific:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.5);
-        }
-        .btn-magnific:disabled {
-            background: #334155;
-            color: #94a3b8;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-    </style>
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { 400: '#FCD34D', 500: '#F59E0B', 600: '#D97706' },
-                        dark: { 800: '#1e293b', 900: '#0B0E14' }
-                    }
-                }
+    try {
+        const magnificRes = await fetch(`https://api.magnific.com/v1/ai/tasks/${taskId}`, {
+            method: 'GET',
+            headers: {
+                'x-magnific-api-key': apiKey
             }
-        }
-    </script>
-</head>
-<body>
-    <div id="root"></div>
+        });
 
-    <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
+        const data = await magnificRes.json();
+        res.status(magnificRes.status).json(data);
 
-        const FileUploader = ({ label, icon, accept, file, setFile, type, description }) => {
-            const fileInputRef = useRef(null);
-            const [preview, setPreview] = useState(null);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal Server Error pada Vercel Proxy' });
+    }
+});
 
-            useEffect(() => {
-                if (!file) {
-                    setPreview(null);
-                    return;
-                }
-                const objectUrl = URL.createObjectURL(file);
-                setPreview(objectUrl);
-                return () => URL.revokeObjectURL(objectUrl);
-            }, [file]);
+// Rute untuk generate video
+app.post('/api/generate', async (req, res) => {
+    const { apiKey, image, reference_video } = req.body;
 
-            return (
-                <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-300 flex justify-between">
-                        <span>{label}</span>
-                        {file && (
-                            <button onClick={(e) => { e.stopPropagation(); setFile(null); }} className="text-red-400 hover:text-red-300 text-xs">
-                                <i className="fa-solid fa-times mr-1"></i>Hapus
-                            </button>
-                        )}
-                    </label>
-                    <div 
-                        onClick={() => !file && fileInputRef.current.click()}
-                        className={`relative w-full h-48 border-2 border-dashed rounded-xl flex justify-center items-center overflow-hidden transition-all
-                            ${file ? 'border-gray-600 bg-black' : 'border-gray-700 hover:border-brand-500 bg-dark-800/40 cursor-pointer group'}`}
-                    >
-                        <input 
-                            type="file" 
-                            accept={accept} 
-                            ref={fileInputRef} 
-                            onChange={(e) => e.target.files[0] && setFile(e.target.files[0])} 
-                            className="hidden" 
-                        />
-                        
-                        {preview ? (
-                            type === 'image' ? (
-                                <img src={preview} alt="Preview" className="w-full h-full object-contain" />
-                            ) : (
-                                <video src={preview} controls className="w-full h-full object-contain" />
-                            )
-                        ) : (
-                            <div className="text-center p-4 group-hover:scale-105 transition-transform duration-300">
-                                <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center mx-auto mb-3 group-hover:bg-brand-500/20 group-hover:text-brand-500 text-gray-400 transition-colors">
-                                    <i className={`fa-solid ${icon} text-xl`}></i>
-                                </div>
-                                <p className="text-sm text-gray-300 font-medium">Klik untuk Unggah</p>
-                                <p className="text-xs text-gray-500 mt-1">{description}</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
+    if (!apiKey || !image || !reference_video) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
 
-        const App = () => {
-            // State Input User
-            const [apiKey, setApiKey] = useState(localStorage.getItem('magnific_api_key') || "");
-            const [characterImg, setCharacterImg] = useState(null);
-            const [referenceVideo, setReferenceVideo] = useState(null);
-            
-            // State UI & Proses
-            const [activeTab, setActiveTab] = useState('generate');
-            const [errorMessage, setErrorMessage] = useState("");
-            const [isProcessing, setIsProcessing] = useState(false);
-            const [progress, setProgress] = useState(0);
-            const [statusText, setStatusText] = useState("");
-            
-            // State Hasil
-            const [resultUrl, setResultUrl] = useState(null);
+    try {
+        const magnificRes = await fetch('https://api.magnific.com/v1/ai/image-to-video/motion-control', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-magnific-api-key': apiKey
+            },
+            body: JSON.stringify({ image, reference_video })
+        });
 
-            // Simpan API Key ke local storage
-            const handleSaveApiKey = (key) => {
-                setApiKey(key);
-                localStorage.setItem('magnific_api_key', key);
-            };
+        const data = await magnificRes.json();
+        res.status(magnificRes.status).json(data);
 
-            // Helper: File ke Base64 (Syarat Payload JSON API)
-            const fileToBase64 = (file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = error => reject(error);
-                });
-            };
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
-            const handleGenerate = async () => {
-                setErrorMessage("");
-                
-                // Validasi Input
-                if (!apiKey) {
-                    setErrorMessage("API Key Magnific tidak ditemukan. Harap masukkan di tab Settings.");
-                    setActiveTab('settings');
-                    return;
-                }
-                if (!characterImg || !referenceVideo) {
-                    setErrorMessage("Gambar Karakter dan Video Referensi wajib diunggah.");
-                    return;
-                }
-
-                setIsProcessing(true);
-                setProgress(10);
-                setStatusText("Menyiapkan aset media...");
-                setResultUrl(null);
-
-                try {
-                    // 1. Konversi ke Base64
-                    const base64Image = await fileToBase64(characterImg);
-                    const base64Video = await fileToBase64(referenceVideo);
-
-                    setProgress(30);
-                    setStatusText("Mengirim tugas ke Vercel...");
-
-                    // 2. Request POST ke API lokal Vercel
-                    const createRes = await fetch('/api/generate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            apiKey: apiKey,
-                            image: base64Image,
-                            reference_video: base64Video
-                        })
-                    });
-
-                    // PERBAIKAN: Cek apakah Vercel membalas dengan HTML Error
-                    const contentType = createRes.headers.get("content-type");
-                    if (!contentType || !contentType.includes("application/json")) {
-                        const errorText = await createRes.text();
-                        throw new Error("Server Vercel gagal memproses. Pastikan file API ada dan ukuran video di bawah 4.5MB.");
-                    }
-
-                    const createData = await createRes.json();
-
-                    if (!createRes.ok) {
-                        throw new Error(`API Magnific Ditolak: ${createData.detail || createData.error || 'Terjadi kesalahan'}`);
-                    }
-
-                    const taskId = createData.data?.task_id || createData.task_id;
-                    
-                    if (!taskId) throw new Error("Task ID tidak ditemukan dari respons server.");
-
-                    setProgress(45);
-                    setStatusText(`Memproses Video (ID: ${taskId.substring(0,6)}...)`);
-
-                    // 3. Polling Status (Cek berkala setiap 5 detik)
-                    const checkStatus = async () => {
-                        try {
-                            const statusRes = await fetch(`https://api.magnific.com/v1/ai/tasks/${taskId}`, {
-                                headers: {
-                                    'x-magnific-api-key': apiKey
-                                }
-                            });
-                            
-                            if (!statusRes.ok) throw new Error("Gagal mengambil status tugas.");
-                            const statusData = await statusRes.json();
-                            const currentStatus = statusData.data?.status || statusData.status;
-                            
-                            if (currentStatus === 'COMPLETED' || currentStatus === 'SUCCESS') {
-                                setProgress(100);
-                                setStatusText("Render Selesai!");
-                                // Ambil URL video hasil (sesuaikan dengan struktur JSON Magnific)
-                                const videoFinalUrl = statusData.data?.result_url || statusData.data?.video_url || statusData.result_url;
-                                setResultUrl(videoFinalUrl);
-                                setIsProcessing(false);
-                            } else if (currentStatus === 'FAILED' || currentStatus === 'ERROR') {
-                                throw new Error("Proses AI Gagal. Coba file referensi yang berbeda.");
-                            } else {
-                                // Jika masih proses, naikkan progress bar perlahan lalu panggil lagi
-                                setProgress(prev => (prev < 95 ? prev + 2 : 95));
-                                setTimeout(checkStatus, 5000); 
-                            }
-                        } catch (err) {
-                            console.error("Polling Error:", err);
-                            setErrorMessage(err.message);
-                            setIsProcessing(false);
-                        }
-                    };
-
-                    // Mulai proses polling
-                    setTimeout(checkStatus, 5000);
-
-                } catch (error) {
-                    console.error("Generate Error:", error);
-                    setErrorMessage(error.message);
-                    setIsProcessing(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen flex flex-col">
-                    {/* Navbar */}
-                    <nav className="glass-panel border-b-0 border-white/10 px-8 py-4 sticky top-0 z-50">
-                        <div className="max-w-7xl mx-auto flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-yellow-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-                                    <i className="fa-solid fa-wand-magic-sparkles text-white text-lg"></i>
-                                </div>
-                                <div>
-                                    <h1 className="text-xl font-bold text-gradient tracking-wide">Brocuanmax</h1>
-                                    <p className="text-[10px] text-gray-400 tracking-wider uppercase font-semibold">Motion Generator</p>
-                                </div>
-                            </div>
-                            
-                            <div className="flex gap-2 bg-dark-800/80 p-1 rounded-lg border border-white/5">
-                                <button 
-                                    onClick={() => setActiveTab('generate')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'generate' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-                                >
-                                    <i className="fa-solid fa-layer-group mr-2"></i>Workspace
-                                </button>
-                                <button 
-                                    onClick={() => setActiveTab('settings')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'settings' ? 'bg-gray-700 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}
-                                >
-                                    <i className="fa-solid fa-gear mr-2"></i>Settings
-                                </button>
-                            </div>
-                        </div>
-                    </nav>
-
-                    {/* Main Content Area */}
-                    <main className="flex-grow p-6 md:p-8 flex justify-center w-full">
-                        <div className="max-w-7xl w-full">
-                            
-                            {/* TAB: SETTINGS */}
-                            {activeTab === 'settings' && (
-                                <div className="animate-fade-in max-w-2xl mx-auto">
-                                    <div className="glass-panel p-8 rounded-2xl flex flex-col gap-6">
-                                        <div className="flex items-center gap-4 border-b border-gray-700 pb-4">
-                                            <i className="fa-solid fa-key text-2xl text-brand-500"></i>
-                                            <div>
-                                                <h2 className="text-xl font-bold text-white">API Configuration</h2>
-                                                <p className="text-sm text-gray-400">Hubungkan akun Magnific Anda untuk mulai men-generate.</p>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-sm font-medium text-gray-300">Magnific API Key</label>
-                                            <input 
-                                                type="password" 
-                                                value={apiKey}
-                                                onChange={(e) => handleSaveApiKey(e.target.value)}
-                                                placeholder="mag_xxxxxxxxxxxxxxxxxxx"
-                                                className="w-full bg-dark-900 border border-gray-700 rounded-xl p-4 text-white focus:outline-none focus:border-brand-500 transition-colors"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Kunci API disimpan secara lokal di browser Anda. <a href="https://magnific.ai" target="_blank" className="text-brand-400 hover:underline">Dapatkan API Key di sini.</a>
-                                            </p>
-                                        </div>
-
-                                        <button 
-                                            onClick={() => setActiveTab('generate')}
-                                            className="mt-4 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-colors w-max"
-                                        >
-                                            Simpan & Kembali ke Workspace
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* TAB: GENERATE */}
-                            {activeTab === 'generate' && (
-                                <div className="flex flex-col lg:flex-row gap-8 items-start animate-fade-in">
-                                    
-                                    {/* Kolom Kiri: Input */}
-                                    <div className="w-full lg:w-[40%] flex flex-col gap-6">
-                                        
-                                        {/* Error Banner */}
-                                        {errorMessage && (
-                                            <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-5 py-4 rounded-xl flex items-start gap-3 animate-fade-in">
-                                                <i className="fa-solid fa-circle-exclamation mt-1"></i>
-                                                <div className="flex-grow">
-                                                    <h4 className="text-sm font-bold text-red-400">Error</h4>
-                                                    <p className="text-sm break-words">{errorMessage}</p>
-                                                </div>
-                                                <button onClick={() => setErrorMessage("")} className="text-red-400 hover:text-red-300">
-                                                    <i className="fa-solid fa-times"></i>
-                                                </button>
-                                            </div>
-                                        )}
-                                        
-                                        <div className="glass-panel p-6 rounded-2xl flex flex-col gap-6">
-                                            {/* Kotak Gambar */}
-                                            <FileUploader 
-                                                label="1. Karakter (Image)" 
-                                                icon="fa-user-astronaut" 
-                                                accept="image/png, image/jpeg, image/webp" 
-                                                file={characterImg} 
-                                                setFile={setCharacterImg}
-                                                type="image"
-                                                description="Subjek yang akan dianimasikan (JPG/PNG)"
-                                            />
-                                            
-                                            <div className="flex items-center justify-center -my-2 relative z-10">
-                                                <div className="bg-dark-800 text-gray-500 border border-gray-700 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold">
-                                                    <i className="fa-solid fa-plus"></i>
-                                                </div>
-                                            </div>
-
-                                            {/* Kotak Video */}
-                                            <FileUploader 
-                                                label="2. Referensi Gerak (Video)" 
-                                                icon="fa-person-running" 
-                                                accept="video/mp4, video/quicktime" 
-                                                file={referenceVideo} 
-                                                setFile={setReferenceVideo}
-                                                type="video"
-                                                description="Video sumber pergerakan (MP4/MOV)"
-                                            />
-                                        </div>
-
-                                        {/* Tombol Eksekusi */}
-                                        <button 
-                                            onClick={handleGenerate}
-                                            disabled={isProcessing}
-                                            className="btn-magnific w-full py-5 rounded-xl font-bold text-lg flex justify-center items-center gap-3"
-                                        >
-                                            {isProcessing ? (
-                                                <>
-                                                    <i className="fa-solid fa-circle-notch fa-spin text-xl"></i> 
-                                                    <span>Memproses {progress}%</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="fa-solid fa-clapperboard text-xl"></i> 
-                                                    <span>Generate Motion</span>
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {/* Kolom Kanan: Hasil */}
-                                    <div className="w-full lg:w-[60%] glass-panel rounded-2xl border-white/10 min-h-[600px] flex flex-col relative overflow-hidden bg-black/40 shadow-2xl">
-                                        
-                                        {/* State: Belum ada aktivitas */}
-                                        {!isProcessing && !resultUrl && (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 p-8 text-center animate-fade-in">
-                                                <div className="w-24 h-24 rounded-full border border-gray-700 bg-dark-900 flex items-center justify-center mb-6 animate-float">
-                                                    <i className="fa-solid fa-film text-3xl text-gray-600"></i>
-                                                </div>
-                                                <h3 className="text-xl font-bold text-gray-300 mb-2">Kanvas Output</h3>
-                                                <p className="text-sm max-w-sm">Unggah gambar karakter dan video referensi Anda di sebelah kiri, lalu tekan Generate untuk melihat keajaiban AI bekerja.</p>
-                                            </div>
-                                        )}
-
-                                        {/* State: Sedang Loading/Processing */}
-                                        {isProcessing && (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-dark-900/80 backdrop-blur-sm z-20 animate-fade-in">
-                                                <div className="w-64 max-w-full flex flex-col gap-6 text-center">
-                                                    <i className="fa-brands fa-hubspot text-5xl text-brand-500 fa-spin" style={{animationDuration: '3s'}}></i>
-                                                    
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-white mb-2">Menganalisis Gerakan</h3>
-                                                        <p className="text-sm text-brand-400 font-medium animate-pulse">{statusText}</p>
-                                                    </div>
-
-                                                    <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-700 shadow-inner">
-                                                        <div 
-                                                            className="h-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all duration-500 ease-out relative"
-                                                            style={{ width: `${progress}%` }}
-                                                        >
-                                                            <div className="absolute top-0 left-0 w-full h-full bg-white/20 animate-[shimmer_2s_infinite]"></div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* State: Hasil Selesai */}
-                                        {resultUrl && !isProcessing && (
-                                            <div className="absolute inset-0 flex flex-col p-4 animate-fade-in">
-                                                <div className="flex-grow rounded-xl overflow-hidden bg-black flex items-center justify-center border border-gray-800 relative group">
-                                                    <video 
-                                                        src={resultUrl} 
-                                                        controls 
-                                                        autoPlay 
-                                                        loop 
-                                                        className="w-full h-full object-contain"
-                                                    />
-                                                </div>
-                                                
-                                                <div className="mt-4 flex justify-between items-center px-2">
-                                                    <div className="flex items-center gap-2 text-green-400">
-                                                        <i className="fa-solid fa-circle-check"></i>
-                                                        <span className="text-sm font-semibold">Berhasil Dibuat</span>
-                                                    </div>
-                                                    <a 
-                                                        href={resultUrl} 
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="bg-white/10 hover:bg-white/20 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 border border-white/5"
-                                                    >
-                                                        <i className="fa-solid fa-download"></i> Unduh Video
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        )}
-                                        
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                    </main>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+// Mengekspor aplikasi Express untuk Vercel
+module.exports = app;
